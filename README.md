@@ -6,7 +6,7 @@ Point it at your ROS2 workspace and get an interactive graph showing how nodes, 
 
 ## Why
 
-Every existing ROS2 visualization tool requires a live running system. If you just cloned a repo, you're doing code review, or you're in CI — none of those tools work.
+Every existing ROS2 visualization tool requires a live running system. If you just cloned a repo, you're doing code review, or you're in CI. None of those tools work.
 
 ros2grapher reads your Python source files directly using static analysis and builds the graph without executing anything.
 
