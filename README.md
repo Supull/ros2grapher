@@ -1,6 +1,6 @@
 # ros2grapher
 
-Visualize ROS2 node topology from Python source code — no robot required.
+Visualize ROS2 node topology from Python source code with no robot required.
 
 Point it at your ROS2 workspace and get an interactive graph showing how nodes, topics and message types connect. No ROS2 installation needed, no running system, no simulator.
 
