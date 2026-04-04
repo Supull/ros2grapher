@@ -1,0 +1,3 @@
+[console_scripts]
+ros2grapher = ros2grapher.cli:main
+

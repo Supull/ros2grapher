@@ -1,0 +1,311 @@
+import json
+import os
+from ros2grapher.graph import ROS2Graph
+
+TEMPLATE = """<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ros2grapher</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0d1117; color: #e6edf3; font-family: monospace; }
+
+  #header {
+    padding: 16px 24px;
+    border-bottom: 1px solid #21262d;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  #header h1 { font-size: 16px; color: #58a6ff; }
+  #header span { font-size: 12px; color: #8b949e; }
+
+  #canvas { width: 100vw; height: calc(100vh - 53px); }
+
+  .node circle {
+    fill: #1f6feb;
+    stroke: #388bfd;
+    stroke-width: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .node circle:hover { fill: #388bfd; }
+  .node text {
+    fill: #e6edf3;
+    font-size: 12px;
+    font-family: monospace;
+    pointer-events: none;
+  }
+
+  .topic ellipse {
+    fill: #1a3a1a;
+    stroke: #3fb950;
+    stroke-width: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .topic ellipse:hover { fill: #223a22; }
+  .topic text {
+    fill: #3fb950;
+    font-size: 11px;
+    font-family: monospace;
+    pointer-events: none;
+  }
+
+  .orphan ellipse {
+    fill: #2a1a1a;
+    stroke: #f85149;
+    stroke-width: 1.5px;
+    stroke-dasharray: 4;
+  }
+  .orphan text { fill: #f85149; }
+
+  .link {
+    stroke: #30363d;
+    stroke-width: 1.5px;
+    fill: none;
+    marker-end: url(#arrow);
+  }
+
+  #tooltip {
+    position: fixed;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 12px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    max-width: 260px;
+    line-height: 1.6;
+  }
+  #tooltip .label { color: #8b949e; font-size: 11px; }
+  #tooltip .value { color: #e6edf3; }
+
+  #legend {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 11px;
+    line-height: 2;
+  }
+  .leg-node { color: #388bfd; }
+  .leg-topic { color: #3fb950; }
+  .leg-orphan { color: #f85149; }
+
+  #stats {
+    position: fixed;
+    top: 70px;
+    right: 20px;
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 11px;
+    line-height: 2;
+    color: #8b949e;
+  }
+  #stats span { color: #e6edf3; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>ros2grapher</h1>
+  <span id="workspace-path"></span>
+</div>
+
+<svg id="canvas"></svg>
+
+<div id="tooltip"></div>
+
+<div id="legend">
+  <div class="leg-node">● node</div>
+  <div class="leg-topic">◎ topic (connected)</div>
+  <div class="leg-orphan">◎ topic (orphan)</div>
+</div>
+
+<div id="stats">
+  nodes: <span id="s-nodes">0</span><br>
+  topics: <span id="s-topics">0</span><br>
+  orphans: <span id="s-orphans">0</span>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+const data = __GRAPH_DATA__;
+
+document.getElementById('workspace-path').textContent = data.workspace;
+document.getElementById('s-nodes').textContent = data.nodes.length;
+document.getElementById('s-topics').textContent = data.topics.length;
+document.getElementById('s-orphans').textContent = data.orphans.length;
+
+const width = window.innerWidth;
+const height = window.innerHeight - 53;
+const tooltip = document.getElementById('tooltip');
+
+const svg = d3.select('#canvas')
+  .attr('width', width)
+  .attr('height', height);
+
+// arrow marker
+svg.append('defs').append('marker')
+  .attr('id', 'arrow')
+  .attr('viewBox', '0 -5 10 10')
+  .attr('refX', 20)
+  .attr('refY', 0)
+  .attr('markerWidth', 6)
+  .attr('markerHeight', 6)
+  .attr('orient', 'auto')
+  .append('path')
+  .attr('d', 'M0,-5L10,0L0,5')
+  .attr('fill', '#30363d');
+
+const g = svg.append('g');
+
+// zoom
+svg.call(d3.zoom().scaleExtent([0.3, 3]).on('zoom', e => {
+  g.attr('transform', e.transform);
+}));
+
+// build simulation nodes and links
+const simNodes = [];
+const simLinks = [];
+
+// add ros nodes
+data.nodes.forEach(n => {
+  simNodes.push({ id: n.name, type: 'node', file: n.file });
+});
+
+// add topics
+data.topics.forEach(t => {
+  simNodes.push({ id: t.topic, type: 'topic', msg_type: t.msg_type });
+  t.publishers.forEach(pub => {
+    simLinks.push({ source: pub, target: t.topic });
+  });
+  t.subscribers.forEach(sub => {
+    simLinks.push({ source: t.topic, target: sub });
+  });
+});
+
+// add orphan topics
+data.orphans.forEach(t => {
+  simNodes.push({ id: t.topic, type: 'orphan', msg_type: t.msg_type });
+  t.publishers.forEach(pub => {
+    simLinks.push({ source: pub, target: t.topic });
+  });
+  t.subscribers.forEach(sub => {
+    simLinks.push({ source: t.topic, target: sub });
+  });
+});
+
+// force simulation
+const sim = d3.forceSimulation(simNodes)
+  .force('link', d3.forceLink(simLinks).id(d => d.id).distance(120))
+  .force('charge', d3.forceManyBody().strength(-400))
+  .force('center', d3.forceCenter(width / 2, height / 2))
+  .force('collision', d3.forceCollide(50));
+
+// draw links
+const link = g.append('g').selectAll('line')
+  .data(simLinks).enter().append('line')
+  .attr('class', 'link');
+
+// draw nodes
+const node = g.append('g').selectAll('g')
+  .data(simNodes).enter().append('g')
+  .attr('class', d => d.type)
+  .call(d3.drag()
+    .on('start', (e, d) => { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+    .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
+    .on('end', (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; })
+  );
+
+// render node shapes
+node.each(function(d) {
+  const el = d3.select(this);
+  if (d.type === 'node') {
+    el.append('circle').attr('r', 22);
+    el.append('text').attr('text-anchor', 'middle').attr('dy', 36).text(d.id);
+  } else {
+    el.append('ellipse').attr('rx', 55).attr('ry', 18);
+    el.append('text').attr('text-anchor', 'middle').attr('dy', 4).text(d.id);
+  }
+});
+
+// tooltip
+node.on('mouseover', (e, d) => {
+    let html = '';
+    if (d.type === 'node') {
+      html = `<div class="label">node</div><div class="value">${d.id}</div>
+              <div class="label">file</div><div class="value">${d.file.split('/').pop()}</div>`;
+    } else {
+      html = `<div class="label">topic</div><div class="value">${d.id}</div>
+              <div class="label">msg type</div><div class="value">${d.msg_type}</div>`;
+    }
+    tooltip.innerHTML = html;
+    tooltip.style.opacity = 1;
+  })
+  .on('mousemove', e => {
+    tooltip.style.left = (e.clientX + 14) + 'px';
+    tooltip.style.top = (e.clientY - 10) + 'px';
+  })
+  .on('mouseout', () => { tooltip.style.opacity = 0; });
+
+sim.on('tick', () => {
+  link
+    .attr('x1', d => d.source.x)
+    .attr('y1', d => d.source.y)
+    .attr('x2', d => d.target.x)
+    .attr('y2', d => d.target.y);
+  node.attr('transform', d => `translate(${d.x},${d.y})`);
+});
+</script>
+</body>
+</html>"""
+
+def build_graph_data(graph: ROS2Graph, workspace: str) -> dict:
+    """Convert graph to JSON-serializable dict for the template."""
+    return {
+        "workspace": workspace,
+        "nodes": [
+            {"name": n.name, "file": n.file}
+            for n in graph.nodes
+        ],
+        "topics": [
+            {
+                "topic": t.topic,
+                "msg_type": t.msg_type,
+                "publishers": t.publishers,
+                "subscribers": t.subscribers
+            }
+            for t in graph.topics
+        ],
+        "orphans": [
+            {
+                "topic": t.topic,
+                "msg_type": t.msg_type,
+                "publishers": t.publishers,
+                "subscribers": t.subscribers
+            }
+            for t in graph.orphan_topics
+        ]
+    }
+
+def render(graph: ROS2Graph, workspace: str, output_path: str = "graph.html"):
+    """Render the graph to an HTML file."""
+    data = build_graph_data(graph, workspace)
+    graph_json = json.dumps(data, indent=2)
+    html = TEMPLATE.replace("__GRAPH_DATA__", graph_json)
+
+    with open(output_path, 'w') as f:
+        f.write(html)
+
+    print(f"  graph saved to {output_path}")
+    return output_path

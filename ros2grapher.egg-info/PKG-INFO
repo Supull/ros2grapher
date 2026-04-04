@@ -1,0 +1,12 @@
+Metadata-Version: 2.1
+Name: ros2grapher
+Version: 0.1.0
+Summary: Visualize ROS2 node topology from source code — no robot required.
+Home-page: UNKNOWN
+Author: Supul
+License: UNKNOWN
+Platform: UNKNOWN
+Requires-Python: >=3.8
+
+UNKNOWN
+
