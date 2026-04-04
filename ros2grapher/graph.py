@@ -11,16 +11,21 @@ class TopicConnection:
     dynamic: bool = False
 
 @dataclass
+class ServiceConnection:
+    name: str
+    srv_type: str
+    servers: list = field(default_factory=list)
+    clients: list = field(default_factory=list)
+
+@dataclass
 class ROS2Graph:
     nodes: list = field(default_factory=list)
     topics: list = field(default_factory=list)
     orphan_topics: list = field(default_factory=list)
+    services: list = field(default_factory=list)
 
 def get_package_name(filepath: str) -> str:
-    """Extract package name from file path."""
     parts = filepath.split(os.sep)
-    # walk up from filename looking for the package directory
-    # package dir is usually the one containing __init__.py at top level
     for i in range(len(parts) - 1, 0, -1):
         candidate = os.sep.join(parts[:i])
         if os.path.exists(os.path.join(candidate, 'package.xml')):
@@ -28,29 +33,23 @@ def get_package_name(filepath: str) -> str:
     return 'unknown'
 
 def deduplicate_node_names(nodes: list[ROS2Node]) -> list[ROS2Node]:
-    """If two nodes share the same name, append package name to differentiate."""
     name_counts = {}
     for node in nodes:
         name_counts[node.name] = name_counts.get(node.name, 0) + 1
-
     for node in nodes:
         if name_counts[node.name] > 1:
             pkg = get_package_name(node.file)
             node.name = f"{node.name} ({pkg})"
-
     return nodes
 
 def build_graph(nodes: list[ROS2Node]) -> ROS2Graph:
-    """Take a list of parsed nodes and build the connection graph."""
-
     nodes = deduplicate_node_names(nodes)
-
     graph = ROS2Graph(nodes=nodes)
     topic_map = {}
+    service_map = {}
 
     for node in nodes:
         for pub in node.publishers:
-            # never match dynamic topics with each other
             if pub.dynamic:
                 graph.orphan_topics.append(TopicConnection(
                     topic=f'[dynamic] ({node.name})',
@@ -59,7 +58,6 @@ def build_graph(nodes: list[ROS2Node]) -> ROS2Graph:
                     dynamic=True
                 ))
                 continue
-
             if pub.topic not in topic_map:
                 topic_map[pub.topic] = TopicConnection(
                     topic=pub.topic,
@@ -68,7 +66,6 @@ def build_graph(nodes: list[ROS2Node]) -> ROS2Graph:
             topic_map[pub.topic].publishers.append(node.name)
 
         for sub in node.subscribers:
-            # never match dynamic topics with each other
             if sub.dynamic:
                 graph.orphan_topics.append(TopicConnection(
                     topic=f'[dynamic] ({node.name})',
@@ -77,7 +74,6 @@ def build_graph(nodes: list[ROS2Node]) -> ROS2Graph:
                     dynamic=True
                 ))
                 continue
-
             if sub.topic not in topic_map:
                 topic_map[sub.topic] = TopicConnection(
                     topic=sub.topic,
@@ -85,20 +81,27 @@ def build_graph(nodes: list[ROS2Node]) -> ROS2Graph:
                 )
             topic_map[sub.topic].subscribers.append(node.name)
 
-    # split into connected and orphan topics
+        for srv in node.services:
+            if srv.name not in service_map:
+                service_map[srv.name] = ServiceConnection(
+                    name=srv.name,
+                    srv_type=srv.srv_type,
+                )
+            service_map[srv.name].servers.append(node.name)
+
     for topic in topic_map.values():
         has_pub = len(topic.publishers) > 0
         has_sub = len(topic.subscribers) > 0
-
         if has_pub and has_sub:
             graph.topics.append(topic)
         else:
             graph.orphan_topics.append(topic)
 
+    graph.services = list(service_map.values())
+
     return graph
 
 def print_graph(graph: ROS2Graph):
-    """Pretty print the graph to terminal."""
     print(f"nodes ({len(graph.nodes)}):")
     for node in graph.nodes:
         print(f"  {node.name}")
@@ -108,6 +111,12 @@ def print_graph(graph: ROS2Graph):
         for pub in topic.publishers:
             for sub in topic.subscribers:
                 print(f"  {pub} --> [{topic.topic} ({topic.msg_type})] --> {sub}")
+
+    if graph.services:
+        print(f"\nservices ({len(graph.services)}):")
+        for srv in graph.services:
+            for server in srv.servers:
+                print(f"  {server} serves [{srv.name} ({srv.srv_type})]")
 
     if graph.orphan_topics:
         print(f"\norphan topics ({len(graph.orphan_topics)}):")

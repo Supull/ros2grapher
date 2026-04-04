@@ -61,11 +61,34 @@ TEMPLATE = """<!DOCTYPE html>
   }
   .orphan text { fill: #f85149; }
 
+  .service rect {
+    fill: #2a1f0a;
+    stroke: #e3b341;
+    stroke-width: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    rx: 4px;
+  }
+  .service rect:hover { fill: #3a2a0a; }
+  .service text {
+    fill: #e3b341;
+    font-size: 11px;
+    font-family: monospace;
+    pointer-events: none;
+  }
+
   .link {
     stroke: #30363d;
     stroke-width: 1.5px;
     fill: none;
     marker-end: url(#arrow);
+  }
+
+  .link-service {
+    stroke: #e3b341;
+    stroke-width: 1.5px;
+    stroke-dasharray: 5 3;
+    fill: none;
   }
 
   #tooltip {
@@ -98,6 +121,7 @@ TEMPLATE = """<!DOCTYPE html>
   .leg-node { color: #388bfd; }
   .leg-topic { color: #3fb950; }
   .leg-orphan { color: #f85149; }
+  .leg-service { color: #e3b341; }
 
   #stats {
     position: fixed;
@@ -129,11 +153,13 @@ TEMPLATE = """<!DOCTYPE html>
   <div class="leg-node">● node</div>
   <div class="leg-topic">◎ topic (connected)</div>
   <div class="leg-orphan">◎ topic (orphan)</div>
+  <div class="leg-service">▬ service</div>
 </div>
 
 <div id="stats">
   nodes: <span id="s-nodes">0</span><br>
   topics: <span id="s-topics">0</span><br>
+  services: <span id="s-services">0</span><br>
   orphans: <span id="s-orphans">0</span>
 </div>
 
@@ -144,6 +170,7 @@ const data = __GRAPH_DATA__;
 document.getElementById('workspace-path').textContent = data.workspace;
 document.getElementById('s-nodes').textContent = data.nodes.length;
 document.getElementById('s-topics').textContent = data.topics.length;
+document.getElementById('s-services').textContent = data.services.length;
 document.getElementById('s-orphans').textContent = data.orphans.length;
 
 const width = window.innerWidth;
@@ -154,7 +181,6 @@ const svg = d3.select('#canvas')
   .attr('width', width)
   .attr('height', height);
 
-// arrow marker
 svg.append('defs').append('marker')
   .attr('id', 'arrow')
   .attr('viewBox', '0 -5 10 10')
@@ -169,55 +195,52 @@ svg.append('defs').append('marker')
 
 const g = svg.append('g');
 
-// zoom
 svg.call(d3.zoom().scaleExtent([0.3, 3]).on('zoom', e => {
   g.attr('transform', e.transform);
 }));
 
-// build simulation nodes and links
 const simNodes = [];
 const simLinks = [];
+const serviceLinks = [];
 
-// add ros nodes
 data.nodes.forEach(n => {
   simNodes.push({ id: n.name, type: 'node', file: n.file });
 });
 
-// add topics
 data.topics.forEach(t => {
   simNodes.push({ id: t.topic, type: 'topic', msg_type: t.msg_type });
-  t.publishers.forEach(pub => {
-    simLinks.push({ source: pub, target: t.topic });
-  });
-  t.subscribers.forEach(sub => {
-    simLinks.push({ source: t.topic, target: sub });
-  });
+  t.publishers.forEach(pub => simLinks.push({ source: pub, target: t.topic }));
+  t.subscribers.forEach(sub => simLinks.push({ source: t.topic, target: sub }));
 });
 
-// add orphan topics
 data.orphans.forEach(t => {
   simNodes.push({ id: t.topic, type: 'orphan', msg_type: t.msg_type });
-  t.publishers.forEach(pub => {
-    simLinks.push({ source: pub, target: t.topic });
-  });
-  t.subscribers.forEach(sub => {
-    simLinks.push({ source: t.topic, target: sub });
-  });
+  t.publishers.forEach(pub => simLinks.push({ source: pub, target: t.topic }));
+  t.subscribers.forEach(sub => simLinks.push({ source: t.topic, target: sub }));
 });
 
-// force simulation
+data.services.forEach(s => {
+  simNodes.push({ id: s.name, type: 'service', srv_type: s.srv_type });
+  s.servers.forEach(server => serviceLinks.push({ source: server, target: s.name }));
+  s.clients.forEach(client => serviceLinks.push({ source: client, target: s.name }));
+});
+
+const allLinks = [...simLinks, ...serviceLinks];
+
 const sim = d3.forceSimulation(simNodes)
-  .force('link', d3.forceLink(simLinks).id(d => d.id).distance(120))
+  .force('link', d3.forceLink(allLinks).id(d => d.id).distance(130))
   .force('charge', d3.forceManyBody().strength(-400))
   .force('center', d3.forceCenter(width / 2, height / 2))
-  .force('collision', d3.forceCollide(50));
+  .force('collision', d3.forceCollide(55));
 
-// draw links
 const link = g.append('g').selectAll('line')
   .data(simLinks).enter().append('line')
   .attr('class', 'link');
 
-// draw nodes
+const serviceLink = g.append('g').selectAll('line')
+  .data(serviceLinks).enter().append('line')
+  .attr('class', 'link-service');
+
 const node = g.append('g').selectAll('g')
   .data(simNodes).enter().append('g')
   .attr('class', d => d.type)
@@ -227,24 +250,28 @@ const node = g.append('g').selectAll('g')
     .on('end', (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; })
   );
 
-// render node shapes
 node.each(function(d) {
   const el = d3.select(this);
   if (d.type === 'node') {
     el.append('circle').attr('r', 22);
     el.append('text').attr('text-anchor', 'middle').attr('dy', 36).text(d.id);
+  } else if (d.type === 'service') {
+    el.append('rect').attr('x', -55).attr('y', -14).attr('width', 110).attr('height', 28).attr('rx', 4);
+    el.append('text').attr('text-anchor', 'middle').attr('dy', 4).text(d.id);
   } else {
     el.append('ellipse').attr('rx', 55).attr('ry', 18);
     el.append('text').attr('text-anchor', 'middle').attr('dy', 4).text(d.id);
   }
 });
 
-// tooltip
 node.on('mouseover', (e, d) => {
     let html = '';
     if (d.type === 'node') {
       html = `<div class="label">node</div><div class="value">${d.id}</div>
               <div class="label">file</div><div class="value">${d.file.split('/').pop()}</div>`;
+    } else if (d.type === 'service') {
+      html = `<div class="label">service</div><div class="value">${d.id}</div>
+              <div class="label">type</div><div class="value">${d.srv_type}</div>`;
     } else {
       html = `<div class="label">topic</div><div class="value">${d.id}</div>
               <div class="label">msg type</div><div class="value">${d.msg_type}</div>`;
@@ -264,6 +291,13 @@ sim.on('tick', () => {
     .attr('y1', d => d.source.y)
     .attr('x2', d => d.target.x)
     .attr('y2', d => d.target.y);
+
+  serviceLink
+    .attr('x1', d => d.source.x)
+    .attr('y1', d => d.source.y)
+    .attr('x2', d => d.target.x)
+    .attr('y2', d => d.target.y);
+
   node.attr('transform', d => `translate(${d.x},${d.y})`);
 });
 </script>
@@ -271,7 +305,6 @@ sim.on('tick', () => {
 </html>"""
 
 def build_graph_data(graph: ROS2Graph, workspace: str) -> dict:
-    """Convert graph to JSON-serializable dict for the template."""
     return {
         "workspace": workspace,
         "nodes": [
@@ -295,11 +328,19 @@ def build_graph_data(graph: ROS2Graph, workspace: str) -> dict:
                 "subscribers": t.subscribers
             }
             for t in graph.orphan_topics
+        ],
+        "services": [
+            {
+                "name": s.name,
+                "srv_type": s.srv_type,
+                "servers": s.servers,
+                "clients": s.clients
+            }
+            for s in graph.services
         ]
     }
 
-def render(graph: ROS2Graph, workspace: str, output_path: str = "graph.html"):
-    """Render the graph to an HTML file."""
+def render(graph: ROS2Graph, workspace: str, output_path: str = "index.html"):
     data = build_graph_data(graph, workspace)
     graph_json = json.dumps(data, indent=2)
     html = TEMPLATE.replace("__GRAPH_DATA__", graph_json)
