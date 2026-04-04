@@ -28,7 +28,7 @@ TEMPLATE = """<!DOCTYPE html>
     stroke: #388bfd;
     stroke-width: 2px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: fill 0.2s;
   }
   .node circle:hover { fill: #388bfd; }
   .node text {
@@ -43,7 +43,7 @@ TEMPLATE = """<!DOCTYPE html>
     stroke: #3fb950;
     stroke-width: 2px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: fill 0.2s;
   }
   .topic ellipse:hover { fill: #223a22; }
   .topic text {
@@ -66,8 +66,7 @@ TEMPLATE = """<!DOCTYPE html>
     stroke: #e3b341;
     stroke-width: 2px;
     cursor: pointer;
-    transition: all 0.2s;
-    rx: 4px;
+    transition: fill 0.2s;
   }
   .service rect:hover { fill: #3a2a0a; }
   .service text {
@@ -89,6 +88,20 @@ TEMPLATE = """<!DOCTYPE html>
     stroke-width: 1.5px;
     stroke-dasharray: 5 3;
     fill: none;
+  }
+
+  .group-box {
+    stroke-width: 1.5px;
+    stroke-dasharray: 6 3;
+    fill-opacity: 0.04;
+    pointer-events: none;
+  }
+
+  .group-label {
+    font-size: 11px;
+    font-family: monospace;
+    fill-opacity: 0.5;
+    pointer-events: none;
   }
 
   #tooltip {
@@ -122,6 +135,7 @@ TEMPLATE = """<!DOCTYPE html>
   .leg-topic { color: #3fb950; }
   .leg-orphan { color: #f85149; }
   .leg-service { color: #e3b341; }
+  .leg-group { color: #8b949e; }
 
   #stats {
     position: fixed;
@@ -146,7 +160,6 @@ TEMPLATE = """<!DOCTYPE html>
 </div>
 
 <svg id="canvas"></svg>
-
 <div id="tooltip"></div>
 
 <div id="legend">
@@ -154,13 +167,15 @@ TEMPLATE = """<!DOCTYPE html>
   <div class="leg-topic">◎ topic (connected)</div>
   <div class="leg-orphan">◎ topic (orphan)</div>
   <div class="leg-service">▬ service</div>
+  <div class="leg-group">- - package group</div>
 </div>
 
 <div id="stats">
   nodes: <span id="s-nodes">0</span><br>
   topics: <span id="s-topics">0</span><br>
   services: <span id="s-services">0</span><br>
-  orphans: <span id="s-orphans">0</span>
+  orphans: <span id="s-orphans">0</span><br>
+  packages: <span id="s-packages">0</span>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
@@ -199,12 +214,39 @@ svg.call(d3.zoom().scaleExtent([0.3, 3]).on('zoom', e => {
   g.attr('transform', e.transform);
 }));
 
+const packageColors = [
+  '#388bfd', '#3fb950', '#e3b341', '#f85149',
+  '#bc8cff', '#39d353', '#ff9800', '#00bcd4'
+];
+
+// build package map
+const packageMap = {};
+data.nodes.forEach(n => {
+  const pkg = n.package || 'unknown';
+  if (!packageMap[pkg]) packageMap[pkg] = [];
+  packageMap[pkg].push(n.name);
+});
+
+const packages = Object.keys(packageMap);
+document.getElementById('s-packages').textContent = packages.length;
+
+const packageColor = {};
+packages.forEach((pkg, i) => {
+  packageColor[pkg] = packageColors[i % packageColors.length];
+});
+
+// build sim nodes
 const simNodes = [];
 const simLinks = [];
 const serviceLinks = [];
 
 data.nodes.forEach(n => {
-  simNodes.push({ id: n.name, type: 'node', file: n.file });
+  simNodes.push({
+    id: n.name,
+    type: 'node',
+    file: n.file,
+    package: n.package || 'unknown'
+  });
 });
 
 data.topics.forEach(t => {
@@ -227,11 +269,38 @@ data.services.forEach(s => {
 
 const allLinks = [...simLinks, ...serviceLinks];
 
+// custom clustering force — gently pulls same-package nodes together
+function clusteringForce(alpha) {
+  // compute centroid per package
+  const centroids = {};
+  packages.forEach(pkg => {
+    const members = simNodes.filter(n => n.package === pkg && n.x != null);
+    if (members.length === 0) return;
+    centroids[pkg] = {
+      x: members.reduce((s, n) => s + n.x, 0) / members.length,
+      y: members.reduce((s, n) => s + n.y, 0) / members.length,
+    };
+  });
+
+  // nudge each node toward its package centroid
+  const strength = 0.08 * alpha;
+  simNodes.forEach(n => {
+    if (n.type !== 'node') return;
+    const c = centroids[n.package];
+    if (!c) return;
+    n.vx += (c.x - n.x) * strength;
+    n.vy += (c.y - n.y) * strength;
+  });
+}
+
 const sim = d3.forceSimulation(simNodes)
   .force('link', d3.forceLink(allLinks).id(d => d.id).distance(130))
   .force('charge', d3.forceManyBody().strength(-400))
   .force('center', d3.forceCenter(width / 2, height / 2))
-  .force('collision', d3.forceCollide(55));
+  .force('collision', d3.forceCollide(55))
+  .force('cluster', clusteringForce);  // custom force
+
+const groupLayer = g.append('g').attr('class', 'groups');
 
 const link = g.append('g').selectAll('line')
   .data(simLinks).enter().append('line')
@@ -245,9 +314,17 @@ const node = g.append('g').selectAll('g')
   .data(simNodes).enter().append('g')
   .attr('class', d => d.type)
   .call(d3.drag()
-    .on('start', (e, d) => { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+    .on('start', (e, d) => {
+      if (!e.active) sim.alphaTarget(0.3).restart();
+      d.fx = d.x; d.fy = d.y;
+      sim.force('cluster', null);  // pause clustering while dragging
+    })
     .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
-    .on('end', (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; })
+    .on('end', (e, d) => {
+      if (!e.active) sim.alphaTarget(0);
+      d.fx = null; d.fy = null;
+      sim.force('cluster', clusteringForce);  // resume clustering on release
+    })
   );
 
 node.each(function(d) {
@@ -268,6 +345,7 @@ node.on('mouseover', (e, d) => {
     let html = '';
     if (d.type === 'node') {
       html = `<div class="label">node</div><div class="value">${d.id}</div>
+              <div class="label">package</div><div class="value">${d.package}</div>
               <div class="label">file</div><div class="value">${d.file.split('/').pop()}</div>`;
     } else if (d.type === 'service') {
       html = `<div class="label">service</div><div class="value">${d.id}</div>
@@ -285,6 +363,55 @@ node.on('mouseover', (e, d) => {
   })
   .on('mouseout', () => { tooltip.style.opacity = 0; });
 
+function getNodePos(id) {
+  return simNodes.find(n => n.id === id);
+}
+
+function updateGroups() {
+  const padding = 45;
+  const groupData = packages.map(pkg => {
+    const members = packageMap[pkg]
+      .map(name => getNodePos(name))
+      .filter(n => n && n.x != null);
+
+    if (members.length === 0) return null;
+
+    const xs = members.map(n => n.x);
+    const ys = members.map(n => n.y);
+    const x = Math.min(...xs) - padding;
+    const y = Math.min(...ys) - padding;
+    const w = Math.max(...xs) - Math.min(...xs) + padding * 2;
+    const h = Math.max(...ys) - Math.min(...ys) + padding * 2;
+    return { pkg, x, y, w, h, color: packageColor[pkg] };
+  }).filter(Boolean);
+
+  const boxes = groupLayer.selectAll('g.group')
+    .data(groupData, d => d.pkg);
+
+  const entered = boxes.enter().append('g').attr('class', 'group');
+  entered.append('rect').attr('class', 'group-box');
+  entered.append('text').attr('class', 'group-label');
+
+  const merged = entered.merge(boxes);
+
+  merged.select('rect.group-box')
+    .attr('x', d => d.x)
+    .attr('y', d => d.y)
+    .attr('width', d => d.w)
+    .attr('height', d => d.h)
+    .attr('rx', 12)
+    .attr('stroke', d => d.color)
+    .attr('fill', d => d.color);
+
+  merged.select('text.group-label')
+    .attr('x', d => d.x + 10)
+    .attr('y', d => d.y + 16)
+    .attr('fill', d => d.color)
+    .text(d => d.pkg);
+
+  boxes.exit().remove();
+}
+
 sim.on('tick', () => {
   link
     .attr('x1', d => d.source.x)
@@ -299,6 +426,8 @@ sim.on('tick', () => {
     .attr('y2', d => d.target.y);
 
   node.attr('transform', d => `translate(${d.x},${d.y})`);
+
+  updateGroups();
 });
 </script>
 </body>
@@ -308,7 +437,11 @@ def build_graph_data(graph: ROS2Graph, workspace: str) -> dict:
     return {
         "workspace": workspace,
         "nodes": [
-            {"name": n.name, "file": n.file}
+            {
+                "name": n.name,
+                "file": n.file,
+                "package": _get_package(n.file)
+            }
             for n in graph.nodes
         ],
         "topics": [
@@ -339,6 +472,14 @@ def build_graph_data(graph: ROS2Graph, workspace: str) -> dict:
             for s in graph.services
         ]
     }
+
+def _get_package(filepath: str) -> str:
+    parts = filepath.split(os.sep)
+    for i in range(len(parts) - 1, 0, -1):
+        candidate = os.sep.join(parts[:i])
+        if os.path.exists(os.path.join(candidate, 'package.xml')):
+            return parts[i - 1]
+    return 'unknown'
 
 def render(graph: ROS2Graph, workspace: str, output_path: str = "index.html"):
     data = build_graph_data(graph, workspace)
