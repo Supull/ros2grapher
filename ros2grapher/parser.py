@@ -41,12 +41,18 @@ def extract_name(node) -> Optional[str]:
     return None
 
 SKIP_DIRS = {
-    'build', 'install', 'log', '__pycache__', '.git', 'test', 'tests'
+    'build', 'install', 'log', '__pycache__', '.git',
+    'test', 'tests', 'launch', 'doc', 'docs'
 }
 
 SKIP_FILES = {
     '__init__.py', 'setup.py', 'conf.py'
 }
+
+SKIP_SUFFIXES = (
+    '_launch.py',
+    '_test.py',
+)
 
 SKIP_PREFIXES = (
     'test_',
@@ -56,6 +62,8 @@ def should_skip_file(filename: str) -> bool:
     if filename in SKIP_FILES:
         return True
     if filename.startswith(SKIP_PREFIXES):
+        return True
+    if filename.endswith(SKIP_SUFFIXES):
         return True
     return False
 
