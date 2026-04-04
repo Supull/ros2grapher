@@ -40,6 +40,25 @@ def extract_name(node) -> Optional[str]:
         return node.attr
     return None
 
+SKIP_DIRS = {
+    'build', 'install', 'log', '__pycache__', '.git', 'test', 'tests'
+}
+
+SKIP_FILES = {
+    '__init__.py', 'setup.py', 'conf.py'
+}
+
+SKIP_PREFIXES = (
+    'test_',
+)
+
+def should_skip_file(filename: str) -> bool:
+    if filename in SKIP_FILES:
+        return True
+    if filename.startswith(SKIP_PREFIXES):
+        return True
+    return False
+
 def parse_file(filepath: str) -> list[ROS2Node]:
     with open(filepath, 'r') as f:
         source = f.read()
@@ -114,12 +133,12 @@ def scan_workspace(path: str) -> list[ROS2Node]:
     all_nodes = []
 
     for root, dirs, files in os.walk(path):
-        dirs[:] = [d for d in dirs if d not in ('build', 'install', 'log', '__pycache__', '.git')]
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
 
         for file in files:
             if not file.endswith('.py'):
                 continue
-            if file == '__init__.py':
+            if should_skip_file(file):
                 continue
 
             filepath = os.path.join(root, file)
@@ -138,8 +157,8 @@ if __name__ == '__main__':
     for node in nodes:
         print(f"  [{node.name}] in {os.path.basename(node.file)}")
         for pub in node.publishers:
-            print(f"    publishes  → {pub.topic} ({pub.msg_type})")
+            print(f"    publishes  -> {pub.topic} ({pub.msg_type})")
         for sub in node.subscribers:
-            print(f"    subscribes → {sub.topic} ({sub.msg_type})")
+            print(f"    subscribes -> {sub.topic} ({sub.msg_type})")
         for srv in node.services:
-            print(f"    service    → {srv.name} ({srv.srv_type})")
+            print(f"    service    -> {srv.name} ({srv.srv_type})")
