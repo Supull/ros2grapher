@@ -4,7 +4,7 @@ import sys
 import threading
 import http.server
 import socketserver
-from ros2grapher.parser import scan_workspace
+from ros2grapher.parser import scan_workspace_all as scan_workspace
 from ros2grapher.graph import build_graph, print_graph
 from ros2grapher.renderer import render
 

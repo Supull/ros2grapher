@@ -170,3 +170,17 @@ if __name__ == '__main__':
             print(f"    subscribes -> {sub.topic} ({sub.msg_type})")
         for srv in node.services:
             print(f"    service    -> {srv.name} ({srv.srv_type})")
+
+def scan_workspace_all(path: str) -> list[ROS2Node]:
+    """Scan workspace for both Python and C++ ROS2 nodes."""
+    from ros2grapher.cpp_parser import scan_cpp_files
+    py_nodes = scan_workspace(path)
+    cpp_nodes = scan_cpp_files(path)
+    return py_nodes + cpp_nodes
+
+def scan_workspace_all(path: str) -> list[ROS2Node]:
+    """Scan workspace for both Python and C++ ROS2 nodes."""
+    from ros2grapher.cpp_parser import scan_cpp_files
+    py_nodes = scan_workspace(path)
+    cpp_nodes = scan_cpp_files(path)
+    return py_nodes + cpp_nodes
