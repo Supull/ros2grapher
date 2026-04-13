@@ -9,7 +9,7 @@ CLASS_PATTERN = re.compile(
 
 # matches: Node("node_name") in constructor initializer
 NODE_NAME_PATTERN = re.compile(
-    r'(?:rclcpp::)?Node\s*\(\s*"([^"]+)"\s*\)'
+    r'(?:rclcpp::)?Node\s*\(\s*"([^"]+)"\s*[,)]'
 )
 
 # matches: create_publisher<pkg::msg::Type>("/topic", qos)
