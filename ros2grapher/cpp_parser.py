@@ -4,12 +4,12 @@ from ros2grapher.parser import ROS2Node, Publisher, Subscriber, Service
 
 # matches: class MyNode : public rclcpp::Node
 CLASS_PATTERN = re.compile(
-    r'class\s+(\w+)\s*:.*?public\s+(?:rclcpp::)?Node'
+    r'class\s+(\w+)\s*:.*?public\s+(?:rclcpp::)?(?:lifecycle::)?(?:rclcpp_lifecycle::)?(?:LifecycleNode|Node)'
 )
 
 # matches: Node("node_name") in constructor initializer
 NODE_NAME_PATTERN = re.compile(
-    r'(?:rclcpp::)?Node\s*\(\s*"([^"]+)"\s*[,)]'
+    r'(?:rclcpp::)?(?:rclcpp_lifecycle::)?(?:LifecycleNode|Node)\s*\(\s*"([^"]+)"\s*[,)]'
 )
 
 # matches: create_publisher<pkg::msg::Type>("/topic", qos)
@@ -137,7 +137,7 @@ def scan_cpp_files(path: str) -> list[ROS2Node]:
         dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
 
         for file in files:
-            if not file.endswith(('.cpp', '.cxx', '.cc', '.hpp', '.h')):
+            if not file.endswith(('.cpp', '.cxx', '.cc')):
                 continue
 
             filepath = os.path.join(root, file)
