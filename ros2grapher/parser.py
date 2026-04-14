@@ -178,9 +178,28 @@ def scan_workspace_all(path: str) -> list[ROS2Node]:
     cpp_nodes = scan_cpp_files(path)
     return py_nodes + cpp_nodes
 
-def scan_workspace_all(path: str) -> list[ROS2Node]:
-    """Scan workspace for both Python and C++ ROS2 nodes."""
+def scan_workspace_with_source(path: str) -> tuple:
+    """Scan workspace and return (nodes, source_map) where source_map is filepath -> source."""
     from ros2grapher.cpp_parser import scan_cpp_files
-    py_nodes = scan_workspace(path)
-    cpp_nodes = scan_cpp_files(path)
-    return py_nodes + cpp_nodes
+    source_map = {}
+
+    for root, dirs, files in os.walk(path):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+        for file in files:
+            if file.endswith('.py') and not should_skip_file(file):
+                filepath = os.path.join(root, file)
+                try:
+                    with open(filepath, 'r') as f:
+                        source_map[filepath] = f.read()
+                except Exception:
+                    pass
+            if file.endswith(('.cpp', '.cxx', '.cc')):
+                filepath = os.path.join(root, file)
+                try:
+                    with open(filepath, 'r', errors='ignore') as f:
+                        source_map[filepath] = f.read()
+                except Exception:
+                    pass
+
+    nodes = scan_workspace_all(path)
+    return nodes, source_map

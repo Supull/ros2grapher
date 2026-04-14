@@ -53,6 +53,32 @@ TEMPLATE = """<!DOCTYPE html>
     pointer-events: none;
   }
 
+  /* AI resolved topics */
+  .topic-ai-high ellipse {
+    fill: #1a3a1a;
+    stroke: #e3b341;
+    stroke-width: 2px;
+    cursor: pointer;
+  }
+  .topic-ai-high text { fill: #e3b341; font-size: 11px; font-family: monospace; pointer-events: none; }
+
+  .topic-ai-medium ellipse {
+    fill: #2a2a1a;
+    stroke: #ff9800;
+    stroke-width: 2px;
+    cursor: pointer;
+  }
+  .topic-ai-medium text { fill: #ff9800; font-size: 11px; font-family: monospace; pointer-events: none; }
+
+  .topic-ai-low ellipse {
+    fill: #2a1a1a;
+    stroke: #f85149;
+    stroke-width: 1.5px;
+    stroke-dasharray: 3;
+    cursor: pointer;
+  }
+  .topic-ai-low text { fill: #f85149; font-size: 11px; font-family: monospace; pointer-events: none; }
+
   .orphan ellipse {
     fill: #2a1a1a;
     stroke: #f85149;
@@ -164,10 +190,13 @@ TEMPLATE = """<!DOCTYPE html>
 
 <div id="legend">
   <div class="leg-node">● node</div>
-  <div class="leg-topic">◎ topic (connected)</div>
+  <div class="leg-topic">◎ topic (certain)</div>
   <div class="leg-orphan">◎ topic (orphan)</div>
   <div class="leg-service">▬ service</div>
   <div class="leg-group">- - package group</div>
+  <div style="color:#e3b341">◎ AI resolved (high)</div>
+  <div style="color:#ff9800">◎ AI resolved (medium)</div>
+  <div style="color:#f85149">◎ AI resolved (low)</div>
 </div>
 
 <div id="stats">
@@ -250,7 +279,9 @@ data.nodes.forEach(n => {
 });
 
 data.topics.forEach(t => {
-  simNodes.push({ id: t.topic, type: 'topic', msg_type: t.msg_type });
+  let type = 'topic';
+  if (t.ai_resolved) type = 'topic-ai-' + (t.ai_confidence || 'low');
+  simNodes.push({ id: t.topic, type: type, msg_type: t.msg_type, ai_resolved: t.ai_resolved, ai_confidence: t.ai_confidence });
   t.publishers.forEach(pub => simLinks.push({ source: pub, target: t.topic }));
   t.subscribers.forEach(sub => simLinks.push({ source: t.topic, target: sub }));
 });
@@ -337,7 +368,8 @@ node.each(function(d) {
     el.append('text').attr('text-anchor', 'middle').attr('dy', 4).text(d.id);
   } else {
     el.append('ellipse').attr('rx', 55).attr('ry', 18);
-    el.append('text').attr('text-anchor', 'middle').attr('dy', 4).text(d.id);
+    const label = d.ai_resolved ? d.id + ' 🤖' : d.id;
+    el.append('text').attr('text-anchor', 'middle').attr('dy', 4).text(label);
   }
 });
 
@@ -351,8 +383,11 @@ node.on('mouseover', (e, d) => {
       html = `<div class="label">service</div><div class="value">${d.id}</div>
               <div class="label">type</div><div class="value">${d.srv_type}</div>`;
     } else {
+      const aiInfo = d.ai_resolved
+        ? `<div class="label">resolved by</div><div class="value">AI (${d.ai_confidence} confidence)</div>`
+        : '';
       html = `<div class="label">topic</div><div class="value">${d.id}</div>
-              <div class="label">msg type</div><div class="value">${d.msg_type}</div>`;
+              <div class="label">msg type</div><div class="value">${d.msg_type}</div>${aiInfo}`;
     }
     tooltip.innerHTML = html;
     tooltip.style.opacity = 1;
@@ -449,7 +484,9 @@ def build_graph_data(graph: ROS2Graph, workspace: str) -> dict:
                 "topic": t.topic,
                 "msg_type": t.msg_type,
                 "publishers": t.publishers,
-                "subscribers": t.subscribers
+                "subscribers": t.subscribers,
+                "ai_resolved": t.ai_resolved,
+                "ai_confidence": t.ai_confidence
             }
             for t in graph.topics
         ],

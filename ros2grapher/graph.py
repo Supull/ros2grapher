@@ -9,6 +9,8 @@ class TopicConnection:
     publishers: list = field(default_factory=list)
     subscribers: list = field(default_factory=list)
     dynamic: bool = False
+    ai_resolved: bool = False
+    ai_confidence: str = 'unknown'  # high, medium, low, unknown
 
 @dataclass
 class ServiceConnection:
@@ -62,6 +64,8 @@ def build_graph(nodes: list[ROS2Node]) -> ROS2Graph:
                 topic_map[pub.topic] = TopicConnection(
                     topic=pub.topic,
                     msg_type=pub.msg_type,
+                    ai_resolved=getattr(pub, 'ai_resolved', False),
+                    ai_confidence=getattr(pub, 'ai_confidence', 'unknown'),
                 )
             topic_map[pub.topic].publishers.append(node.name)
 
@@ -78,6 +82,8 @@ def build_graph(nodes: list[ROS2Node]) -> ROS2Graph:
                 topic_map[sub.topic] = TopicConnection(
                     topic=sub.topic,
                     msg_type=sub.msg_type,
+                    ai_resolved=getattr(sub, 'ai_resolved', False),
+                    ai_confidence=getattr(sub, 'ai_confidence', 'unknown'),
                 )
             topic_map[sub.topic].subscribers.append(node.name)
 
