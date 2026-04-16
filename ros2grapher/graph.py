@@ -44,8 +44,20 @@ def deduplicate_node_names(nodes: list[ROS2Node]) -> list[ROS2Node]:
             node.name = f"{node.name} ({pkg})"
     return nodes
 
+def normalize_topic(topic: str) -> str:
+    if topic and not topic.startswith('/') and not topic.startswith('['):
+        return '/' + topic
+    return topic
+
 def build_graph(nodes: list[ROS2Node]) -> ROS2Graph:
     nodes = deduplicate_node_names(nodes)
+
+    for node in nodes:
+        for pub in node.publishers:
+            pub.topic = normalize_topic(pub.topic)
+        for sub in node.subscribers:
+            sub.topic = normalize_topic(sub.topic)
+
     graph = ROS2Graph(nodes=nodes)
     topic_map = {}
     service_map = {}
