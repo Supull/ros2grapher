@@ -72,8 +72,8 @@ Hover over any node or topic to see details. Drag to rearrange. Scroll to zoom.
 
 ## Roadmap
 
-- [ ] C++ node support
-- [ ] AI-assisted dynamic topic resolution
+- [✔] C++ node support
+- [✔] AI-assisted dynamic topic resolution
 - [ ] VS Code extension
 - [ ] GitHub Action for CI/CD
 
