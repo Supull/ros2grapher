@@ -228,7 +228,7 @@ const svg = d3.select('#canvas')
 svg.append('defs').append('marker')
   .attr('id', 'arrow')
   .attr('viewBox', '0 -5 10 10')
-  .attr('refX', 20)
+  .attr('refX', 25)
   .attr('refY', 0)
   .attr('markerWidth', 6)
   .attr('markerHeight', 6)
@@ -333,12 +333,12 @@ const sim = d3.forceSimulation(simNodes)
 
 const groupLayer = g.append('g').attr('class', 'groups');
 
-const link = g.append('g').selectAll('line')
-  .data(simLinks).enter().append('line')
+const link = g.append('g').selectAll('path')
+  .data(simLinks).enter().append('path')
   .attr('class', 'link');
 
-const serviceLink = g.append('g').selectAll('line')
-  .data(serviceLinks).enter().append('line')
+const serviceLink = g.append('g').selectAll('path')
+  .data(serviceLinks).enter().append('path')
   .attr('class', 'link-service');
 
 const node = g.append('g').selectAll('g')
@@ -448,17 +448,15 @@ function updateGroups() {
 }
 
 sim.on('tick', () => {
-  link
-    .attr('x1', d => d.source.x)
-    .attr('y1', d => d.source.y)
-    .attr('x2', d => d.target.x)
-    .attr('y2', d => d.target.y);
+  function linkArc(d) {
+    const dx = d.target.x - d.source.x;
+    const dy = d.target.y - d.source.y;
+    const dr = Math.sqrt(dx * dx + dy * dy) * 1.5;
+    return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+  }
 
-  serviceLink
-    .attr('x1', d => d.source.x)
-    .attr('y1', d => d.source.y)
-    .attr('x2', d => d.target.x)
-    .attr('y2', d => d.target.y);
+  link.attr('d', linkArc);
+  serviceLink.attr('d', linkArc);
 
   node.attr('transform', d => `translate(${d.x},${d.y})`);
 
