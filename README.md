@@ -4,8 +4,7 @@ Visualize ROS2 node topology from Python source code with no robot required.
 
 Point it at your ROS2 workspace and get an interactive graph showing how nodes, topics and message types connect. No ROS2 installation needed, no running system, no simulator.
 
-<img width="1453" height="772" alt="Screenshot 2026-04-04 at 2 52 32 PM" src="https://github.com/user-attachments/assets/50d7a898-eac4-43ac-ae55-011b2521fd76" />
-
+<img width="1461" height="779" alt="Screenshot 2026-04-17 at 12 49 49 AM" src="https://github.com/user-attachments/assets/e324f9d0-e33f-4b7d-9fc6-ee9ced975af2" />
 
 ## Why
 
