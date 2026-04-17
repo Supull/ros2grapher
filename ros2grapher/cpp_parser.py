@@ -2,37 +2,37 @@ import re
 import os
 from ros2grapher.parser import ROS2Node, Publisher, Subscriber, Service
 
-# matches: class MyNode : public rclcpp::Node
+
 CLASS_PATTERN = re.compile(
     r'class\s+(\w+)\s*:.*?public\s+(?:rclcpp::)?(?:lifecycle::)?(?:rclcpp_lifecycle::)?(?:LifecycleNode|Node)'
 )
 
-# matches: Node("node_name") in constructor initializer
+
 NODE_NAME_PATTERN = re.compile(
     r'(?:rclcpp::)?(?:rclcpp_lifecycle::)?(?:LifecycleNode|Node)\s*\(\s*"([^"]+)"\s*[,)]'
 )
 
-# matches: create_publisher<pkg::msg::Type>("/topic", qos)
+
 PUBLISHER_PATTERN = re.compile(
     r'create_publisher\s*<\s*([\w:]+)\s*>\s*\(\s*"([^"]+)"\s*,'
 )
 
-# matches: create_subscription<pkg::msg::Type>("/topic", qos, cb)
+
 SUBSCRIPTION_PATTERN = re.compile(
     r'create_subscription\s*<\s*([\w:]+)\s*>\s*\(\s*"([^"]+)"\s*,'
 )
 
-# matches: create_publisher<pkg::msg::Type>(some_var, qos) — dynamic
+
 PUBLISHER_DYNAMIC_PATTERN = re.compile(
     r'create_publisher\s*<\s*([\w:]+)\s*>\s*\(\s*(\w+)\s*,'
 )
 
-# matches: create_subscription<pkg::msg::Type>(some_var, qos, cb) — dynamic
+
 SUBSCRIPTION_DYNAMIC_PATTERN = re.compile(
     r'create_subscription\s*<\s*([\w:]+)\s*>\s*\(\s*(\w+)\s*,'
 )
 
-# matches: create_service<pkg::srv::Type>("/service", cb)
+
 SERVICE_PATTERN = re.compile(
     r'create_service\s*<\s*([\w:]+)\s*>\s*\(\s*"([^"]+)"\s*,'
 )
@@ -46,13 +46,13 @@ def parse_cpp_file(filepath: str) -> list[ROS2Node]:
     with open(filepath, 'r', errors='ignore') as f:
         source = f.read()
 
-    # check if this file uses rclcpp at all — skip if not
+    
     if 'rclcpp' not in source:
         return []
 
     nodes = []
 
-    # find all classes that extend rclcpp::Node
+    
     class_matches = list(CLASS_PATTERN.finditer(source))
 
     if not class_matches:
@@ -61,7 +61,7 @@ def parse_cpp_file(filepath: str) -> list[ROS2Node]:
     for i, class_match in enumerate(class_matches):
         class_name = class_match.group(1)
 
-        # get the source chunk for this class
+        
         start = class_match.start()
         end = class_matches[i + 1].start() if i + 1 < len(class_matches) else len(source)
         class_source = source[start:end]
@@ -71,12 +71,12 @@ def parse_cpp_file(filepath: str) -> list[ROS2Node]:
             file=filepath
         )
 
-        # extract node name from Node("name")
+
         name_match = NODE_NAME_PATTERN.search(class_source)
         if name_match:
             ros_node.name = name_match.group(1)
 
-        # extract publishers — hardcoded topics
+
         for match in PUBLISHER_PATTERN.finditer(class_source):
             msg_type = extract_short_type(match.group(1))
             topic = match.group(2)
@@ -84,7 +84,7 @@ def parse_cpp_file(filepath: str) -> list[ROS2Node]:
                 Publisher(topic=topic, msg_type=msg_type)
             )
 
-        # extract publishers — dynamic topics
+
         already_matched = {m.group(2) for m in PUBLISHER_PATTERN.finditer(class_source)}
         for match in PUBLISHER_DYNAMIC_PATTERN.finditer(class_source):
             topic_var = match.group(2)
@@ -94,7 +94,7 @@ def parse_cpp_file(filepath: str) -> list[ROS2Node]:
                     Publisher(topic='[dynamic]', msg_type=msg_type, dynamic=True)
                 )
 
-        # extract subscriptions — hardcoded topics
+
         for match in SUBSCRIPTION_PATTERN.finditer(class_source):
             msg_type = extract_short_type(match.group(1))
             topic = match.group(2)
@@ -102,7 +102,7 @@ def parse_cpp_file(filepath: str) -> list[ROS2Node]:
                 Subscriber(topic=topic, msg_type=msg_type)
             )
 
-        # extract subscriptions — dynamic topics
+        
         already_matched = {m.group(2) for m in SUBSCRIPTION_PATTERN.finditer(class_source)}
         for match in SUBSCRIPTION_DYNAMIC_PATTERN.finditer(class_source):
             topic_var = match.group(2)
@@ -112,7 +112,7 @@ def parse_cpp_file(filepath: str) -> list[ROS2Node]:
                     Subscriber(topic='[dynamic]', msg_type=msg_type, dynamic=True)
                 )
 
-        # extract services
+
         for match in SERVICE_PATTERN.finditer(class_source):
             srv_type = extract_short_type(match.group(1))
             name = match.group(2)
