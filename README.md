@@ -6,6 +6,8 @@ Point it at your ROS2 workspace and get an interactive graph showing how nodes, 
 
 <img width="1461" height="779" alt="Screenshot 2026-04-17 at 12 49 49 AM" src="https://github.com/user-attachments/assets/6c961729-354c-4658-bc86-dc995edb63d4" />
 
+
+
 <img width="1101" height="692" alt="Screenshot 2026-04-18 at 1 33 29 PM" src="https://github.com/user-attachments/assets/6e0195e8-0a27-4bb3-b613-32889b972dfe" />
 
 ## Why
