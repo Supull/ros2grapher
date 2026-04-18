@@ -109,6 +109,28 @@ TEMPLATE = """<!DOCTYPE html>
     marker-end: url(#arrow);
   }
 
+  .link-ai-high {
+    stroke: #e3b341;
+    stroke-width: 2px;
+    fill: none;
+    marker-end: url(#arrow);
+  }
+
+  .link-ai-medium {
+    stroke: #ff9800;
+    stroke-width: 2px;
+    fill: none;
+    marker-end: url(#arrow);
+  }
+
+  .link-ai-low {
+    stroke: #f85149;
+    stroke-width: 1.5px;
+    stroke-dasharray: 4;
+    fill: none;
+    marker-end: url(#arrow);
+  }
+
   .link-service {
     stroke: #e3b341;
     stroke-width: 1.5px;
@@ -282,8 +304,14 @@ data.topics.forEach(t => {
   let type = 'topic';
   if (t.ai_resolved) type = 'topic-ai-' + (t.ai_confidence || 'low');
   simNodes.push({ id: t.topic, type: type, msg_type: t.msg_type, ai_resolved: t.ai_resolved, ai_confidence: t.ai_confidence });
-  t.publishers.forEach(pub => simLinks.push({ source: pub, target: t.topic }));
-  t.subscribers.forEach(sub => simLinks.push({ source: t.topic, target: sub }));
+  t.publishers.forEach(pub => {
+    const isAi = t.ai_publishers && t.ai_publishers.includes(pub);
+    simLinks.push({ source: pub, target: t.topic, ai_resolved: isAi, ai_confidence: t.ai_confidence });
+  });
+  t.subscribers.forEach(sub => {
+    const isAi = t.ai_subscribers && t.ai_subscribers.includes(sub);
+    simLinks.push({ source: t.topic, target: sub, ai_resolved: isAi, ai_confidence: t.ai_confidence });
+  });
 });
 
 data.orphans.forEach(t => {
@@ -335,7 +363,10 @@ const groupLayer = g.append('g').attr('class', 'groups');
 
 const link = g.append('g').selectAll('path')
   .data(simLinks).enter().append('path')
-  .attr('class', 'link');
+  .attr('class', d => {
+    if (d.ai_resolved) return 'link-ai-' + (d.ai_confidence || 'low');
+    return 'link';
+  });
 
 const serviceLink = g.append('g').selectAll('path')
   .data(serviceLinks).enter().append('path')
@@ -484,7 +515,9 @@ def build_graph_data(graph: ROS2Graph, workspace: str) -> dict:
                 "publishers": t.publishers,
                 "subscribers": t.subscribers,
                 "ai_resolved": t.ai_resolved,
-                "ai_confidence": t.ai_confidence
+                "ai_confidence": t.ai_confidence,
+                "ai_publishers": t.ai_publishers,
+                "ai_subscribers": t.ai_subscribers
             }
             for t in graph.topics
         ],

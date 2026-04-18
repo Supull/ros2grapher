@@ -10,7 +10,9 @@ class TopicConnection:
     subscribers: list = field(default_factory=list)
     dynamic: bool = False
     ai_resolved: bool = False
-    ai_confidence: str = 'unknown'  # high, medium, low, unknown
+    ai_confidence: str = 'unknown'
+    ai_publishers: list = field(default_factory=list)
+    ai_subscribers: list = field(default_factory=list)
 
 @dataclass
 class ServiceConnection:
@@ -34,7 +36,7 @@ def get_package_name(filepath: str) -> str:
             return parts[i - 1]
     return 'unknown'
 
-def deduplicate_node_names(nodes: list[ROS2Node]) -> list[ROS2Node]:
+def deduplicate_node_names(nodes: list) -> list:
     name_counts = {}
     for node in nodes:
         name_counts[node.name] = name_counts.get(node.name, 0) + 1
@@ -49,9 +51,10 @@ def normalize_topic(topic: str) -> str:
         return '/' + topic
     return topic
 
-def build_graph(nodes: list[ROS2Node]) -> ROS2Graph:
+def build_graph(nodes: list) -> ROS2Graph:
     nodes = deduplicate_node_names(nodes)
 
+    # normalize all topic names
     for node in nodes:
         for pub in node.publishers:
             pub.topic = normalize_topic(pub.topic)
@@ -72,14 +75,17 @@ def build_graph(nodes: list[ROS2Node]) -> ROS2Graph:
                     dynamic=True
                 ))
                 continue
+
             if pub.topic not in topic_map:
                 topic_map[pub.topic] = TopicConnection(
                     topic=pub.topic,
                     msg_type=pub.msg_type,
-                    ai_resolved=getattr(pub, 'ai_resolved', False),
-                    ai_confidence=getattr(pub, 'ai_confidence', 'unknown'),
                 )
             topic_map[pub.topic].publishers.append(node.name)
+            if getattr(pub, 'ai_resolved', False):
+                topic_map[pub.topic].ai_resolved = True
+                topic_map[pub.topic].ai_confidence = getattr(pub, 'ai_confidence', 'medium')
+                topic_map[pub.topic].ai_publishers.append(node.name)
 
         for sub in node.subscribers:
             if sub.dynamic:
@@ -90,14 +96,17 @@ def build_graph(nodes: list[ROS2Node]) -> ROS2Graph:
                     dynamic=True
                 ))
                 continue
+
             if sub.topic not in topic_map:
                 topic_map[sub.topic] = TopicConnection(
                     topic=sub.topic,
                     msg_type=sub.msg_type,
-                    ai_resolved=getattr(sub, 'ai_resolved', False),
-                    ai_confidence=getattr(sub, 'ai_confidence', 'unknown'),
                 )
             topic_map[sub.topic].subscribers.append(node.name)
+            if getattr(sub, 'ai_resolved', False):
+                topic_map[sub.topic].ai_resolved = True
+                topic_map[sub.topic].ai_confidence = getattr(sub, 'ai_confidence', 'medium')
+                topic_map[sub.topic].ai_subscribers.append(node.name)
 
         for srv in node.services:
             if srv.name not in service_map:
@@ -116,7 +125,6 @@ def build_graph(nodes: list[ROS2Node]) -> ROS2Graph:
             graph.orphan_topics.append(topic)
 
     graph.services = list(service_map.values())
-
     return graph
 
 def print_graph(graph: ROS2Graph):
@@ -128,7 +136,8 @@ def print_graph(graph: ROS2Graph):
     for topic in graph.topics:
         for pub in topic.publishers:
             for sub in topic.subscribers:
-                print(f"  {pub} --> [{topic.topic} ({topic.msg_type})] --> {sub}")
+                ai = " [AI]" if topic.ai_resolved else ""
+                print(f"  {pub} --> [{topic.topic} ({topic.msg_type})]{ai} --> {sub}")
 
     if graph.services:
         print(f"\nservices ({len(graph.services)}):")
@@ -148,8 +157,9 @@ def print_graph(graph: ROS2Graph):
 
 if __name__ == '__main__':
     import sys
+    from ros2grapher.parser import scan_workspace_all
     path = sys.argv[1] if len(sys.argv) > 1 else '.'
     print(f"scanning {path}...\n")
-    nodes = scan_workspace(path)
+    nodes = scan_workspace_all(path)
     graph = build_graph(nodes)
     print_graph(graph)
