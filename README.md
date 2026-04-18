@@ -1,6 +1,6 @@
 # ros2grapher
 
-Visualize ROS2 node topology from Python and C++ source code — no robot required.
+Visualize ROS2 node topology from Python and C++ source code with no robot required.
 
 Point it at your ROS2 workspace and get an interactive graph showing how nodes, topics, services and message types connect. No ROS2 installation needed, no running system, no simulator.
 
@@ -12,7 +12,7 @@ Point it at your ROS2 workspace and get an interactive graph showing how nodes, 
 
 ## Why
 
-Every existing ROS2 visualization tool requires a live running system. If you just cloned a repo, you are doing code review, or you are in CI — none of those tools work.
+Every existing ROS2 visualization tool requires a live running system. If you just cloned a repo, you are doing code review, or you are in CI none of those tools work.
 
 ros2grapher reads your source files directly using static analysis and builds the graph without executing anything.
 
@@ -56,7 +56,7 @@ Walks your workspace and parses every Python and C++ source file using Python AS
 - create_publisher calls to extract topic names and message types
 - create_subscription calls to extract topic names and message types
 - create_service calls to extract service names and types
-- Cross-package topic matching — a publisher in one package connects to a subscriber in another if they share the same topic name
+- Cross-package topic matching. A publisher in one package connects to a subscriber in another if they share the same topic name
 
 Hardcoded topic names are resolved with full certainty and shown in green. Topics that cannot be resolved statically are flagged as [dynamic].
 
