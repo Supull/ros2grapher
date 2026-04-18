@@ -1,22 +1,25 @@
 # ros2grapher
 
-Visualize ROS2 node topology from Python source code with no robot required.
+Visualize ROS2 node topology from Python and C++ source code — no robot required.
 
-Point it at your ROS2 workspace and get an interactive graph showing how nodes, topics and message types connect. No ROS2 installation needed, no running system, no simulator.
+Point it at your ROS2 workspace and get an interactive graph showing how nodes, topics, services and message types connect. No ROS2 installation needed, no running system, no simulator.
 
-<img width="1461" height="779" alt="Screenshot 2026-04-17 at 12 49 49 AM" src="https://github.com/user-attachments/assets/e324f9d0-e33f-4b7d-9fc6-ee9ced975af2" />
+<img width="1461" height="779" alt="Screenshot 2026-04-17 at 12 49 49 AM" src="https://github.com/user-attachments/assets/6c961729-354c-4658-bc86-dc995edb63d4" />
+
+<img width="1101" height="692" alt="Screenshot 2026-04-18 at 1 33 29 PM" src="https://github.com/user-attachments/assets/6e0195e8-0a27-4bb3-b613-32889b972dfe" />
 
 ## Why
 
-Every existing ROS2 visualization tool requires a live running system. If you just cloned a repo, you're doing code review, or you're in CI. None of those tools work.
+Every existing ROS2 visualization tool requires a live running system. If you just cloned a repo, you are doing code review, or you are in CI — none of those tools work.
 
-ros2grapher reads your Python source files directly using static analysis and builds the graph without executing anything.
+ros2grapher reads your source files directly using static analysis and builds the graph without executing anything.
 
 |                        | ros2grapher | rqt_graph | ros_network_viz |
 |------------------------|-------------|-----------|-----------------|
 | Requires ROS2 running  | no          | yes       | yes             |
 | Works on cloned repos  | yes         | no        | no              |
 | Works in CI/CD         | yes         | no        | no              |
+| Supports C++ nodes     | yes         | yes       | yes             |
 | No install needed      | yes         | no        | no              |
 
 ## Install
@@ -34,48 +37,59 @@ Then open http://localhost:8888 in your browser.
 ## Options
 
     ros2grapher ./src                  # scan a specific folder
+    ros2grapher ./src --ai             # use AI to resolve dynamic topics
     ros2grapher ./src --port 9000      # use a different port
     ros2grapher ./src --no-serve       # just generate index.html
     ros2grapher ./src --print          # print graph to terminal
 
-## How it works
+## AI-assisted dynamic topic resolution
 
-    .py source files
-          |
-      AST parser — extracts nodes, publishers, subscribers, services
-          |
-      graph builder — matches topics across files, detects orphans
-          |
-      D3.js visualization — interactive, draggable, color coded
+Some ROS2 nodes use dynamic topic names set via parameters or config files. ros2grapher flags these as [dynamic] by default. With the --ai flag, it uses Gemini AI to infer the likely topic name from surrounding code context.
 
-## What it detects
+Requires a free Gemini API key from https://aistudio.google.com
 
-- ROS2 nodes (classes extending Node)
-- Publishers (create_publisher)
-- Subscribers (create_subscription)
-- Services (create_service)
-- Dynamic topic names flagged as [dynamic]
-- Orphan topics — published but never subscribed or vice versa
+    export GEMINI_API_KEY=your_key_here
+    ros2grapher ./src --ai
+
+AI resolved connections are shown in orange in the graph. Confidence levels — high, medium, low — indicate how certain the resolution is.
 
 ## Visual output
 
 - Blue circles — ROS2 nodes
-- Green ellipses — connected topics
+- Green ellipses — topics (statically certain)
+- Orange ellipses — topics (AI resolved)
 - Red dashed ellipses — orphan topics (no publisher or no subscriber)
+- Orange rectangles — services
+- Dashed colored borders — package groups
+- node to topic arrow — node publishes to that topic
+- topic to node arrow — node subscribes to that topic
+- Orange line — connection resolved by AI
 
-Hover over any node or topic to see details. Drag to rearrange. Scroll to zoom.
+Hover over any node or topic to see details. Drag to rearrange. Scroll to zoom. Drag a package border to move the whole group.
+
+## What it detects
+
+- ROS2 nodes (Python classes extending Node, C++ classes extending rclcpp::Node)
+- Publishers (create_publisher)
+- Subscribers (create_subscription)
+- Services (create_service)
+- LifecycleNodes (rclcpp_lifecycle::LifecycleNode)
+- Dynamic topic names flagged as [dynamic] or resolved by AI
+- Orphan topics — published but never subscribed or vice versa
+- Cross-language connections — C++ publisher to Python subscriber and vice versa
 
 ## Limitations
 
-- Python nodes only (C++ support planned)
 - Dynamic topic names cannot always be resolved statically
+- C++ nodes with variable node names show as unknown_ClassName
+- AI resolution requires a Gemini API key
 
 ## Roadmap
 
-- [✔] C++ node support
-- [✔] AI-assisted dynamic topic resolution
-- [ ] VS Code extension
 - [ ] GitHub Action for CI/CD
+- [ ] VS Code extension
+- [ ] Launch file awareness
+- [ ] Action visualization
 
 ## License
 
