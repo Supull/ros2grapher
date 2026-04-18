@@ -219,6 +219,10 @@ TEMPLATE = """<!DOCTYPE html>
   <div style="color:#e3b341">◎ AI resolved (high)</div>
   <div style="color:#ff9800">◎ AI resolved (medium)</div>
   <div style="color:#f85149">◎ AI resolved (low)</div>
+  <hr style="border-color:#21262d; margin: 6px 0">
+  <div style="color:#8b949e">node → topic = publishes</div>
+  <div style="color:#8b949e">topic → node = subscribes</div>
+  <div style="color:#ff9800">orange line = AI resolved</div>
 </div>
 
 <div id="stats">
