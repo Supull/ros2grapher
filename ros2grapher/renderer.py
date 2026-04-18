@@ -353,10 +353,10 @@ function clusteringForce(alpha) {
 }
 
 const sim = d3.forceSimulation(simNodes)
-  .force('link', d3.forceLink(allLinks).id(d => d.id).distance(130))
-  .force('charge', d3.forceManyBody().strength(-400))
+  .force('link', d3.forceLink(allLinks).id(d => d.id).distance(200))
+  .force('charge', d3.forceManyBody().strength(-800))
   .force('center', d3.forceCenter(width / 2, height / 2))
-  .force('collision', d3.forceCollide(55))
+  .force('collision', d3.forceCollide(80))
   .force('cluster', clusteringForce);  // custom force
 
 const groupLayer = g.append('g').attr('class', 'groups');
