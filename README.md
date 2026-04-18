@@ -4,11 +4,11 @@ Visualize ROS2 node topology from Python and C++ source code — no robot requir
 
 Point it at your ROS2 workspace and get an interactive graph showing how nodes, topics, services and message types connect. No ROS2 installation needed, no running system, no simulator.
 
-<img width="1459" height="779" alt="Screenshot 2026-04-18 at 1 38 09 PM" src="https://github.com/user-attachments/assets/3ae50bd2-52ff-4fe4-b2a5-a42b950732c7" />
+<img width="1459" height="779" alt="Screenshot 2026-04-18 at 1 38 09 PM" src="https://github.com/user-attachments/assets/5bd93465-6b45-43b0-8217-f5b0ca8951b6" />
 
 ------------------------------------------------------------------------------------------------------------------------------------------------
 
-<img width="1101" height="692" alt="Screenshot 2026-04-18 at 1 33 29 PM" src="https://github.com/user-attachments/assets/6e0195e8-0a27-4bb3-b613-32889b972dfe" />
+<img width="1101" height="692" alt="Screenshot 2026-04-18 at 1 33 29 PM" src="https://github.com/user-attachments/assets/01b173b8-4194-40ea-a3ee-0d483727f402" />
 
 ## Why
 
@@ -44,16 +44,39 @@ Then open http://localhost:8888 in your browser.
     ros2grapher ./src --no-serve       # just generate index.html
     ros2grapher ./src --print          # print graph to terminal
 
-## AI-assisted dynamic topic resolution
+## How it works
 
-Some ROS2 nodes use dynamic topic names set via parameters or config files. ros2grapher flags these as [dynamic] by default. With the --ai flag, it uses Gemini AI to infer the likely topic name from surrounding code context.
+ros2grapher uses two layers of analysis:
+
+**Layer 1 — Static analysis (always runs)**
+
+Walks your workspace and parses every Python and C++ source file using Python AST parsing and regex pattern matching. It looks for:
+
+- Python classes extending Node or C++ classes extending rclcpp::Node or rclcpp_lifecycle::LifecycleNode
+- create_publisher calls to extract topic names and message types
+- create_subscription calls to extract topic names and message types
+- create_service calls to extract service names and types
+- Cross-package topic matching — a publisher in one package connects to a subscriber in another if they share the same topic name
+
+Hardcoded topic names are resolved with full certainty and shown in green. Topics that cannot be resolved statically are flagged as [dynamic].
+
+**Layer 2 — AI resolution (optional, requires --ai flag)**
+
+When a topic name is stored in a variable or comes from a parameter, static analysis cannot determine it. With --ai, ros2grapher sends the source file to Gemini AI with a structured prompt asking it to determine the topic name from context — for example by reading the default value passed to declare_parameter.
+
+Each AI resolution comes with a confidence score:
+- High — topic found directly in a declare_parameter default value
+- Medium — inferred from variable names, class names, or context
+- Low — best guess from surrounding code
+
+AI resolved connections are shown in orange in the graph so you always know what is certain and what is inferred.
+
+## AI-assisted dynamic topic resolution
 
 Requires a free Gemini API key from https://aistudio.google.com
 
     export GEMINI_API_KEY=your_key_here
     ros2grapher ./src --ai
-
-AI resolved connections are shown in orange in the graph. Confidence levels — high, medium, low — indicate how certain the resolution is.
 
 ## Visual output
 
@@ -71,20 +94,22 @@ Hover over any node or topic to see details. Drag to rearrange. Scroll to zoom. 
 
 ## What it detects
 
-- ROS2 nodes (Python classes extending Node, C++ classes extending rclcpp::Node)
-- Publishers (create_publisher)
-- Subscribers (create_subscription)
-- Services (create_service)
-- LifecycleNodes (rclcpp_lifecycle::LifecycleNode)
-- Dynamic topic names flagged as [dynamic] or resolved by AI
+- ROS2 nodes — Python classes extending Node, C++ classes extending rclcpp::Node
+- LifecycleNodes — rclcpp_lifecycle::LifecycleNode
+- Publishers — create_publisher
+- Subscribers — create_subscription
+- Services — create_service
+- Dynamic topic names — flagged as [dynamic] or resolved by AI with confidence score
 - Orphan topics — published but never subscribed or vice versa
 - Cross-language connections — C++ publisher to Python subscriber and vice versa
+- Package grouping — nodes grouped visually by their ROS2 package
 
 ## Limitations
 
 - Dynamic topic names cannot always be resolved statically
 - C++ nodes with variable node names show as unknown_ClassName
-- AI resolution requires a Gemini API key
+- AI resolution requires a free Gemini API key
+- AI resolution is slower on large workspaces due to API rate limits
 
 ## Roadmap
 
