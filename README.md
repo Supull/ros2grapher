@@ -111,6 +111,46 @@ Hover over any node or topic to see details. Drag to rearrange. Scroll to zoom. 
 - AI resolution requires a free Gemini API key
 - AI resolution is slower on large workspaces due to API rate limits
 
+## GitHub Action
+
+Add ros2grapher to any ROS2 repo to automatically post node topology as a comment on every pull request.
+
+Create `.github/workflows/ros2grapher.yml` in your ROS2 repo:
+
+    name: ros2grapher
+    on:
+      pull_request:
+        paths:
+          - '**.py'
+          - '**.cpp'
+          - '**.hpp'
+    jobs:
+      graph:
+        runs-on: ubuntu-latest
+        permissions:
+          pull-requests: write
+        steps:
+          - uses: actions/checkout@v4
+          - uses: actions/setup-python@v5
+            with:
+              python-version: '3.10'
+          - run: pip install git+https://github.com/Supull/ros2grapher.git
+          - id: grapher
+            run: |
+              OUTPUT=$(ros2grapher . --print --no-serve 2>/dev/null)
+              echo "output<<EOF" >> $GITHUB_OUTPUT
+              echo "$OUTPUT" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+          - uses: actions/github-script@v7
+            with:
+              script: |
+                github.rest.issues.createComment({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: '## ros2grapher\n```\n${{ steps.grapher.outputs.output }}\n```\n_static analysis, no robot required_'
+                });
+
 ## Roadmap
 
 - [ ] GitHub Action for CI/CD
