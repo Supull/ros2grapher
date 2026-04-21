@@ -38,8 +38,33 @@ Source code:
 {source}
 """
 
+import hashlib
+
+CACHE_FILE = '.ros2grapher_cache.json'
+
 def get_api_key():
     return os.environ.get('GEMINI_API_KEY')
+
+def _load_cache() -> dict:
+    try:
+        if os.path.exists(CACHE_FILE):
+            with open(CACHE_FILE, 'r') as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+def _save_cache(cache: dict):
+    try:
+        with open(CACHE_FILE, 'w') as f:
+            json.dump(cache, f, indent=2)
+    except Exception:
+        pass
+
+def _cache_key(source: str, variable: str) -> str:
+    """Generate a cache key from source code and variable name."""
+    content = f"{variable}:{source[:3000]}"
+    return hashlib.md5(content.encode()).hexdigest()
 
 def _wait_for_rate_limit():
     global _last_request_time
@@ -125,11 +150,27 @@ def resolve_dynamic_topic(source, variable):
     api_key = get_api_key()
     if not api_key:
         return '[dynamic]', 'unknown'
+
+    # check cache first
+    cache = _load_cache()
+    key = _cache_key(source, variable)
+    if key in cache:
+        cached = cache[key]
+        print(f"    (cached) {cached[0]} ({cached[1]} confidence)")
+        return cached[0], cached[1]
+
     prompt = PROMPT_TEMPLATE.format(variable=variable, source=source[:3000])
     text = _call_api(prompt, api_key)
     if not text:
         return '[dynamic]', 'unknown'
-    return _parse_response(text)
+
+    result = _parse_response(text)
+
+    # save to cache
+    cache[key] = result
+    _save_cache(cache)
+
+    return result
 
 def resolve_nodes(nodes, source_map):
     api_key = get_api_key()
