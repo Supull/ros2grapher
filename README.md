@@ -153,10 +153,16 @@ Create `.github/workflows/ros2grapher.yml` in your ROS2 repo:
 
 ## Roadmap
 
-- [ ] GitHub Action for CI/CD
+- [x] C++ node support
+- [x] AI-assisted dynamic topic resolution
+- [x] Services visualization
+- [x] Package grouping
+- [x] Cross-language topic matching
+- [x] GitHub Action for CI/CD
 - [ ] VS Code extension
 - [ ] Launch file awareness
 - [ ] Action visualization
+- [ ] Additional AI providers (Claude, GPT, Ollama)
 
 ## License
 
