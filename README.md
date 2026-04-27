@@ -159,9 +159,6 @@ Create `.github/workflows/ros2grapher.yml` in your ROS2 repo:
 - [x] Package grouping
 - [x] Cross-language topic matching
 - [x] GitHub Action for CI/CD
-- [ ] VS Code extension
-- [ ] Launch file awareness
-- [ ] Action visualization
 - [ ] Additional AI providers (Claude, GPT, Ollama)
 
 ## License
